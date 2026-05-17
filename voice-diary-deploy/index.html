@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f1419">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="日記">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%230f1419'/><text x='50%25' y='50%25' font-size='110' text-anchor='middle' dominant-baseline='central'>🎤</text></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text x='50%25' y='50%25' font-size='28' text-anchor='middle' dominant-baseline='central'>🎤</text></svg>">
+<title>音声日記</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: #0f1419;
+    color: #e6e6e6;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  header {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #1f2937;
+    gap: 8px;
+  }
+  h1 { font-size: 17px; font-weight: 600; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 10px;
+    font-size: 18px;
+    cursor: pointer;
+    color: #9ca3af;
+  }
+  .status {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #374151;
+    color: white;
+  }
+  .status.recording {
+    background: #dc2626;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px 0;
+    gap: 10px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .label {
+    font-size: 12px;
+    color: #9ca3af;
+    padding-left: 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  textarea {
+    width: 100%;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 12px;
+    padding: 14px;
+    color: #e6e6e6;
+    font-size: 16px;
+    line-height: 1.7;
+    resize: none;
+    font-family: inherit;
+  }
+  textarea:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+  #transcript { min-height: 160px; flex-shrink: 0; }
+  #summary {
+    min-height: 200px;
+    background: #14202e;
+    border-color: #1e3a8a;
+    white-space: pre-wrap;
+    flex-shrink: 0;
+  }
+  .interim {
+    color: #9ca3af;
+    font-size: 14px;
+    min-height: 22px;
+    line-height: 1.5;
+    padding: 0 4px;
+  }
+  .error {
+    color: #f87171;
+    font-size: 13px;
+    padding: 0 4px;
+    min-height: 18px;
+    word-break: break-word;
+  }
+  .summarize-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  .summarize-btn:active { transform: scale(0.98); }
+  .summarize-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  footer {
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid #1f2937;
+    flex-shrink: 0;
+  }
+  footer button {
+    flex: 1;
+    padding: 14px 10px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.2s;
+    user-select: none;
+  }
+  footer button:active { transform: scale(0.96); }
+  footer button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .record-btn { background: #3b82f6; flex: 2.2; }
+  .record-btn.recording { background: #dc2626; }
+  .copy-btn { background: #10b981; }
+  .clear-btn { background: #6b7280; flex: 0.7; }
+  .toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #10b981;
+    color: white;
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .toast.show { opacity: 1; }
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 200;
+  }
+  .modal[hidden] { display: none; }
+  .modal-content {
+    background: #1f2937;
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .modal-content h2 { font-size: 18px; margin-bottom: 16px; }
+  .modal-content label {
+    display: block;
+    font-size: 13px;
+    color: #9ca3af;
+    margin-bottom: 6px;
+  }
+  .modal-content input {
+    width: 100%;
+    padding: 12px;
+    background: #0f1419;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    color: #e6e6e6;
+    font-size: 14px;
+    font-family: monospace;
+  }
+  .modal-content input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+  .modal-content .hint {
+    font-size: 12px;
+    color: #9ca3af;
+    margin: 8px 0 16px;
+    line-height: 1.5;
+  }
+  .modal-content .hint a { color: #60a5fa; }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .modal-actions button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+  }
+  .cancel-btn { background: #6b7280; }
+  .save-btn { background: #3b82f6; }
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎤 音声日記</h1>
+    <div class="header-right">
+      <button id="settingsBtn" class="icon-btn" title="設定">⚙️</button>
+      <span class="status" id="status">待機中</span>
+    </div>
+  </header>
+  <main>
+    <div class="label">
+      <span>文字おこし（編集可）</span>
+    </div>
+    <textarea id="transcript" placeholder="🎤 録音開始ボタンを押して話してください。&#10;ここに文字おこし結果が表示されます。" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    <div class="interim" id="interim"></div>
+    <button id="summarizeBtn" class="summarize-btn">✨ Geminiで日記にまとめる</button>
+    <div class="error" id="error"></div>
+    <div class="label" id="summaryLabel" hidden>
+      <span>整理済みの日記（コピーされる対象）</span>
+    </div>
+    <textarea id="summary" readonly hidden placeholder="まとめた結果がここに表示されます"></textarea>
+  </main>
+  <footer>
+    <button class="record-btn" id="recordBtn">🎤 録音開始</button>
+    <button class="copy-btn" id="copyBtn">📋 コピー</button>
+    <button class="clear-btn" id="clearBtn" title="クリア">🗑️</button>
+  </footer>
+  <div class="toast" id="toast"></div>
+
+  <div id="settingsModal" class="modal" hidden>
+    <div class="modal-content">
+      <h2>⚙️ 設定</h2>
+      <label for="apiKeyInput">Gemini API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="AIza...">
+      <p class="hint">
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> で無料発行できます（クレカ登録不要）。<br>
+        キーはこの端末のみに保存されます。
+      </p>
+      <div class="modal-actions">
+        <button class="cancel-btn" id="cancelSettings">キャンセル</button>
+        <button class="save-btn" id="saveSettings">保存</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
+const $ = (id) => document.getElementById(id);
+const transcriptEl = $('transcript');
+const summaryEl = $('summary');
+const summaryLabel = $('summaryLabel');
+const interimEl = $('interim');
+const recordBtn = $('recordBtn');
+const copyBtn = $('copyBtn');
+const clearBtn = $('clearBtn');
+const summarizeBtn = $('summarizeBtn');
+const settingsBtn = $('settingsBtn');
+const settingsModal = $('settingsModal');
+const apiKeyInput = $('apiKeyInput');
+const cancelSettings = $('cancelSettings');
+const saveSettings = $('saveSettings');
+const statusEl = $('status');
+const errorEl = $('error');
+const toastEl = $('toast');
+
+let recognition = null;
+let isRecording = false;
+let shouldRestart = false;
+let restartTimer = null;
+
+// --- Storage ---
+const LS_TRANSCRIPT = 'diary-transcript';
+const LS_SUMMARY = 'diary-summary';
+const LS_KEY = 'gemini-api-key';
+
+transcriptEl.value = localStorage.getItem(LS_TRANSCRIPT) || '';
+const savedSummary = localStorage.getItem(LS_SUMMARY);
+if (savedSummary) {
+  summaryEl.value = savedSummary;
+  summaryEl.hidden = false;
+  summaryLabel.hidden = false;
+}
+transcriptEl.addEventListener('input', () => {
+  localStorage.setItem(LS_TRANSCRIPT, transcriptEl.value);
+});
+
+if (!SR) {
+  errorEl.textContent = 'このブラウザは音声認識に未対応です。iOS の Safari か Android の Chrome で開いてください。';
+  recordBtn.disabled = true;
+}
+
+// --- Helpers ---
+function showToast(msg, isError) {
+  toastEl.textContent = msg;
+  toastEl.style.background = isError ? '#dc2626' : '#10b981';
+  toastEl.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toastEl.classList.remove('show'), 1400);
+}
+function setStatus(text, recording) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('recording', !!recording);
+}
+function appendFinal(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const cur = transcriptEl.value;
+  transcriptEl.value = cur + (cur && !cur.endsWith('\n') ? '\n' : '') + trimmed;
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  localStorage.setItem(LS_TRANSCRIPT, transcriptEl.value);
+}
+function isoToday() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// --- Speech recognition ---
+function buildRecognition() {
+  const r = new SR();
+  r.lang = 'ja-JP';
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+
+  r.onstart = () => { setStatus('録音中', true); errorEl.textContent = ''; };
+  r.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) appendFinal(result[0].transcript);
+      else interim += result[0].transcript;
+    }
+    interimEl.textContent = interim;
+  };
+  r.onerror = (event) => {
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      errorEl.textContent = 'マイクの利用が許可されていません。ブラウザ設定で許可してください。';
+      stopRecording();
+    } else if (event.error === 'network') {
+      errorEl.textContent = 'ネットワークエラー。Web Speech API はオンライン必須です。';
+    } else {
+      errorEl.textContent = 'エラー: ' + event.error;
+    }
+  };
+  r.onend = () => {
+    interimEl.textContent = '';
+    if (shouldRestart) {
+      restartTimer = setTimeout(() => {
+        try { r.start(); } catch (e) {
+          try { recognition = buildRecognition(); recognition.start(); }
+          catch (e2) { setStatus('待機中', false); }
+        }
+      }, 200);
+    } else {
+      setStatus('待機中', false);
+    }
+  };
+  return r;
+}
+function startRecording() {
+  if (!SR) return;
+  isRecording = true;
+  shouldRestart = true;
+  recordBtn.textContent = '⏹ 停止';
+  recordBtn.classList.add('recording');
+  recognition = buildRecognition();
+  try { recognition.start(); }
+  catch (e) { errorEl.textContent = '開始エラー: ' + e.message; stopRecording(); }
+}
+function stopRecording() {
+  shouldRestart = false;
+  isRecording = false;
+  clearTimeout(restartTimer);
+  if (recognition) { try { recognition.stop(); } catch (e) {} }
+  recordBtn.textContent = '🎤 録音開始';
+  recordBtn.classList.remove('recording');
+  setStatus('待機中', false);
+  interimEl.textContent = '';
+}
+recordBtn.addEventListener('click', () => {
+  if (isRecording) stopRecording(); else startRecording();
+});
+
+// --- Gemini summarize ---
+function buildPrompt(transcript, dateStr) {
+  return `あなたは日記の編集者です。以下は音声で話した内容の生の文字おこしです。これを日記として整理してください。
+
+【処理ルール】
+1. 「えー」「あー」「えっと」「うーん」などのフィラー・言い淀みを完全に除去
+2. 方言や過度に口語的な表現は標準的で読みやすい日本語に置き換える
+3. 重複・言い直しは1つにまとめる
+4. 話の軸・核となる思考を抽出し、具体的かつ論理的な文章に再構成する
+5. 話していない内容を勝手に追加・推測しない（事実関係は忠実に）
+6. 内容を端的に表すタイトルを1つ作る（30文字以内、内容を象徴する具体的なもの）
+
+【出力形式】（厳守。前置き・補足・コードフェンス・説明文は一切書かない。出力はMarkdownのみ）
+
+# ${dateStr} {ここにタイトル}
+
+{ここに整理された本文。段落で分けて読みやすく}
+
+【今日の日付】${dateStr}
+
+【生の文字おこし】
+${transcript}`;
+}
+
+async function summarize() {
+  const apiKey = localStorage.getItem(LS_KEY);
+  if (!apiKey) {
+    showToast('まず ⚙️ から API キーを設定してください', true);
+    openSettings();
+    return;
+  }
+  const transcript = transcriptEl.value.trim();
+  if (!transcript) {
+    showToast('文字おこしテキストがありません', true);
+    return;
+  }
+
+  errorEl.textContent = '';
+  summarizeBtn.disabled = true;
+  summarizeBtn.innerHTML = '<span class="spinner"></span>整理中...';
+
+  if (isRecording) stopRecording();
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const body = {
+      contents: [{ parts: [{ text: buildPrompt(transcript, isoToday()) }] }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 4096 }
+    };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`API ${res.status}: ${t.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    const result = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!result) throw new Error('APIから応答が空でした');
+
+    const cleaned = result.trim()
+      .replace(/^```(?:markdown|md)?\s*/i, '')
+      .replace(/```\s*$/, '')
+      .trim();
+
+    summaryEl.value = cleaned;
+    summaryEl.hidden = false;
+    summaryLabel.hidden = false;
+    localStorage.setItem(LS_SUMMARY, cleaned);
+    summaryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast('✓ 整理完了');
+  } catch (e) {
+    errorEl.textContent = 'まとめエラー: ' + e.message;
+    showToast('エラー', true);
+  } finally {
+    summarizeBtn.disabled = false;
+    summarizeBtn.textContent = '✨ Geminiで日記にまとめる';
+  }
+}
+summarizeBtn.addEventListener('click', summarize);
+
+// --- Copy ---
+copyBtn.addEventListener('click', async () => {
+  const text = (summaryEl.value.trim() || transcriptEl.value.trim());
+  if (!text) {
+    showToast('コピーするテキストがありません', true);
+    return;
+  }
+  const label = summaryEl.value.trim() ? '日記' : '文字おこし';
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(`✓ ${label}をコピーしました`);
+  } catch (e) {
+    const target = summaryEl.value.trim() ? summaryEl : transcriptEl;
+    target.removeAttribute('readonly');
+    target.select();
+    try { document.execCommand('copy'); showToast(`✓ ${label}をコピーしました`); }
+    catch (e2) { showToast('コピーに失敗しました', true); }
+    if (target === summaryEl) target.setAttribute('readonly', '');
+  }
+});
+
+// --- Clear ---
+clearBtn.addEventListener('click', () => {
+  if (!transcriptEl.value.trim() && !summaryEl.value.trim()) return;
+  if (confirm('文字おこしと日記の両方を消去しますか？')) {
+    transcriptEl.value = '';
+    summaryEl.value = '';
+    summaryEl.hidden = true;
+    summaryLabel.hidden = true;
+    localStorage.removeItem(LS_TRANSCRIPT);
+    localStorage.removeItem(LS_SUMMARY);
+    interimEl.textContent = '';
+    errorEl.textContent = '';
+  }
+});
+
+// --- Settings ---
+function openSettings() {
+  apiKeyInput.value = localStorage.getItem(LS_KEY) || '';
+  settingsModal.hidden = false;
+  setTimeout(() => apiKeyInput.focus(), 50);
+}
+function closeSettings() { settingsModal.hidden = true; }
+settingsBtn.addEventListener('click', openSettings);
+cancelSettings.addEventListener('click', closeSettings);
+saveSettings.addEventListener('click', () => {
+  const v = apiKeyInput.value.trim();
+  if (v) localStorage.setItem(LS_KEY, v);
+  else localStorage.removeItem(LS_KEY);
+  closeSettings();
+  showToast(v ? '✓ APIキーを保存しました' : 'APIキーを削除しました');
+});
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) closeSettings();
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (isRecording && transcriptEl.value.trim()) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+</script>
+</body>
+</html>
